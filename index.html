@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8' />
+    <title>PV heatmap with Mapbox GL JS</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.css' rel='stylesheet' />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+
+      h1 {
+        font-size: 20px;
+        line-height: 30px;
+      }
+
+      h2 {
+        font-size: 14px;
+        line-height: 20px;
+        margin-bottom: 10px;
+      }
+
+      a {
+        text-decoration: none;
+        color: #2dc4b2;
+      }
+
+      #console {
+        position: absolute;
+        margin: 10px;
+        width: 240px;
+        background-color: white;
+        padding: 10px 20px;
+      }
+
+      .session {
+        margin-bottom: 20px;
+      }
+
+      .row {
+        height: 12px;
+        width: 100%;
+      }
+
+      .colors {
+        background: linear-gradient(
+          to right,
+          #2dc4b2,
+          #3bb3c3,
+          #669ec4,
+          #8b88b6,
+          #a2719b,
+          #aa5e79
+        );
+        margin-bottom: 5px;
+      }
+
+      .label {
+        width: 15%;
+        display: inline-block;
+        text-align: center;
+      }
+    </style>
+</head>
+
+<body>
+  <div id='map'></div>
+  <div id="console">
+    <h1>Rooftop Solar Cumulative Installation Heat Map in VT</h1>
+    <p>
+      Data:
+      <a
+        href="https://www.vtenergydashboard.org/statistics"
+        >Vermont rooftop solar adoption by town</a
+      > from EAN
+    </p>
+    <div class="session">
+      <h2>Year: <label id="active-year">2019</label></h2>
+      <input
+        id="slider"
+        class="row"
+        type="range"
+        min="1999"
+        max="2019"
+        step="1"
+        value="2019"
+      />
+    </div>
+  </div>
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoibWJ4c29sdXRpb25zIiwiYSI6ImNrMm01aG9hdTBlZGwzbXQ1ZXVrNHNmejAifQ.QHQA0N6XPWddCXtvoODHZg';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/dark-v10',
+      center: [-73.093, 44.3755],
+        zoom: 7,
+        pitch: 45.00,
+        bearing: -40
+    });
+
+    map.on('load', () => {
+        let filterYear = ['==', ['number', ['get', 'Year']], 2019];
+        map.addSource('heat', {
+            type: 'geojson',
+            data: './data/derived/heat.geojson'
+        });
+
+        map.addLayer(
+            { 
+            id: 'PV-heat',
+            type: 'heatmap',
+            source: 'heat',
+            maxzoom: 15,
+            paint: {
+            // increase weight as diameter breast height increases
+            'heatmap-weight': {
+                property: 'kW',
+                type: 'exponential',
+                stops: [
+                [1, 0],
+                [62, 1]
+                ]
+            },
+            // increase intensity as zoom level increases
+            'heatmap-intensity': {
+                stops: [
+                [11, 1],
+                [15, 3]
+                ]
+            },
+            // assign color values be applied to points depending on their density
+            'heatmap-color': [
+                'interpolate',
+                ['linear'],
+                ['heatmap-density'],
+                0,
+                'rgba(236,222,239,0)',
+                0.2,
+                'rgb(208,209,230)',
+                0.4,
+                'rgb(166,189,219)',
+                0.6,
+                'rgb(103,169,207)',
+                0.8,
+                'rgb(28,144,153)'
+            ],
+            // increase radius as zoom increases
+            'heatmap-radius': {
+                stops: [
+                [11, 15],
+                [15, 20]
+                ]
+            },
+            // decrease opacity to transition into the circle layer
+            'heatmap-opacity': {
+                default: 1,
+                stops: [
+                [14, 1],
+                [15, 0]
+                ]
+            }
+            }
+            },
+            'waterway-label'
+            );
+        map.addLayer(
+            {
+            'id': 'heat-point',
+            'type': 'circle',
+            'source': 'heat',
+            'minzoom': 14,
+            'paint': {
+            // increase the radius of the circle as the zoom level and dbh value increases
+            'circle-radius': {
+            'property': 'kW',
+            'type': 'exponential',
+            'stops': [
+            [{ zoom: 15, value: 1 }, 5],
+            [{ zoom: 15, value: 62 }, 10],
+            [{ zoom: 22, value: 1 }, 20],
+            [{ zoom: 22, value: 62 }, 50]
+            ]
+            },
+            'circle-color': {
+            'property': 'kW',
+            'type': 'exponential',
+            'stops': [
+            [0, 'rgba(236,222,239,0)'],
+            [10, 'rgb(236,222,239)'],
+            [20, 'rgb(208,209,230)'],
+            [30, 'rgb(166,189,219)'],
+            [40, 'rgb(103,169,207)'],
+            [50, 'rgb(28,144,153)'],
+            [60, 'rgb(1,108,89)']
+            ]
+            },
+            'circle-stroke-color': 'white',
+            'circle-stroke-width': 1,
+            'circle-opacity': {
+            'stops': [
+            [14, 0],
+            [15, 1]
+            ]
+            }
+            }
+            },
+            'waterway-label'
+            );
+    });
+
+          // update year filter when the slider is dragged
+        document.getElementById('slider').addEventListener('input', (event) => {
+          const year = parseInt(event.target.value);
+          // update the map
+          filterYear = ['<=', ['number', ['get', 'Year']], year];
+          map.setFilter('PV-heat', ['all', filterYear]);
+
+        document.getElementById('active-year').innerText = year;
+        });
+
+    map.on('click', 'heat-point', (event) => {
+        new mapboxgl.Popup()
+        .setLngLat(event.features[0].geometry.coordinates)
+        .setHTML(`<strong>kW:</strong> ${event.features[0].properties.kW}`)
+        .addTo(map);
+        });     
+
+    
+
+  </script>
+</body>
+</html>
